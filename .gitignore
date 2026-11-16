@@ -20,6 +20,6 @@ Thumbs.db
 *.pdf
 
 # Runtime Telemetry & Captured Logs
-logs/*.jsonl
-logs/test_logs/
-!logs/.gitkeep
+listener/logs/*.jsonl
+listener/logs/test_logs/
+!listener/logs/.gitkeep

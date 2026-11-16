@@ -20,7 +20,7 @@ import listener.view_logs as viewer
 class TestListenerMockSuite(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.test_log_dir = Path("logs/test_logs")
+        cls.test_log_dir = Path(__file__).resolve().parent / "logs" / "test_logs"
         cls.test_log_dir.mkdir(parents=True, exist_ok=True)
         # Point sniffer to test log dir
         sniffer.LOG_DIR = cls.test_log_dir

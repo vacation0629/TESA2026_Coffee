@@ -15,8 +15,9 @@ ALLOWED_TYPES = tuple(
 )
 ALLOWED_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 
-# Dedicated logs directory
-LOG_DIR = Path(os.getenv("LOG_DIR", "logs"))
+# Dedicated logs directory inside listener/
+DEFAULT_LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR = Path(os.getenv("LOG_DIR", str(DEFAULT_LOG_DIR)))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / f"capture_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
 

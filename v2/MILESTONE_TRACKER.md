@@ -1,52 +1,67 @@
-# **Milestone & Session Continuity Tracker — TESA Top Gun Rally 2026 (Track 3: The Next-Gen Market)**
+# Milestone & Session Continuity Tracker — TESA Top Gun Rally 2026 (Track 3: The Next-Gen Market)
 
 **Project:** End-to-End Coffee Quality & Autonomous Market Agent  
-**Active Version Suite:** v2.3.0 (4-Part Self-Contained Modular Suite \+ Local-AI Implementation Blueprint)  
-Last Updated: 2026-11-16  
-Purpose: Seamless session handoff and token-exhaustion recovery tracker. Any new session can read this file first to resume work immediately without losing context.
+**Active Version Suite:** `v2.5.0` (5-Part Self-Contained Modular Suite \+ Local-AI Blueprint \+ Recyclable Analytics Dashboard)  
+**Last Updated:** 2026-11-16  
+**Purpose:** Seamless session handoff and token-exhaustion recovery tracker. Any new session can read this file first to resume work immediately without losing context.
 
-# **1\. Current Workspace & File Inventory (`TESA_2026_Track3_NextGenMarket`)**
+---
+
+# 1\. Current Workspace & File Inventory (`TESA_2026_Track3_NextGenMarket`)
 
 | File Name | Version | Status | Primary Scope |
 | :---- | :---- | :---- | :---- |
-| **v2/v2\_part1\_upstream\_coffee\_science.md** | v2.0.0 | Complete | Agronomy, Chumphon 1/2/5 genetics, harvesting, fermentation, drying, storage age & hermetic seal |
-| **v2/v2\_part2\_grading\_cv\_chemistry\_roasting.md** | v2.0.0 | Complete | CQI Fine Robusta & TAS 5700 gates, CV morphometrics, thermography, NIR/FTIR, roasting, ESG, 18-feature schema |
-| **v2/v2\_part3\_competition\_agent\_and\_pricing\_engine.md** | v2.2.0 | Complete | Track 3 rules, 4-step pluggable valuation framework, 5 statistical indicators, pluggable 6-stage pipeline \+ optional XGBoost |
-| **v2/v2\_part4\_local\_ai\_implementation\_blueprint.md** | v2.3.0 | Complete | Full 13-file Python codebase blueprint (`config`, `logger`/`sniffer`, `adapters`, `stats_engine`, `xgb_plugin`, `predictors`, `guardrails`, `agent_loop`, CI/CD, e2e tests) ready for local AI execution |
-| **v2/CHANGELOG\_v2.md** | v2.3.0 | Updated | Cumulative release notes covering `v2.0.0` through `v2.3.0` (Milestone M5 codebase blueprint) |
-| **v2/MILESTONE\_TRACKER.md** | v2.3.0 | Active | Master progress checklist, architectural decisions, open unknowns for Nov 17, and next-session resume prompt |
-| **precamp/\[PRECAMP\_DATA\]\_Track3\_QA\_Transcript\_and\_Briefing\_Notes.md** | Pre-Camp (v0) | Reference Only (Obsolete at Camp) | Pre-camp Q\&A transcript & briefing rules — superseded once live Nov 17–20 camp data arrives |
+| `v2/v2_part1_upstream_coffee_science.md` | `v2.0.0` | Complete | Agronomy, Chumphon 1/2/5 genetics, harvesting, fermentation, drying, storage age & hermetic seal |
+| `v2/v2_part2_grading_cv_chemistry_roasting.md` | `v2.0.0` | Complete | CQI Fine Robusta & TAS 5700 gates, CV morphometrics, thermography, NIR/FTIR, roasting, ESG, 18-feature schema |
+| `v2/v2_part3_competition_agent_and_pricing_engine.md` | `v2.4.0` | Complete | Track 3 rules, 4-step pluggable valuation framework, 5 statistical indicators, pluggable 6-stage pipeline \+ optional XGBoost |
+| `v2/v2_part4_local_ai_implementation_blueprint.md` | `v2.4.0` | Complete | Full 13-file Python codebase blueprint (`config`, `logger`/`sniffer`, `adapters`, `stats_engine`, `xgb_plugin`, `predictors`, `guardrails`, `agent_loop`, CI/CD, e2e tests) ready for local AI execution |
+| `v2/v2_part5_telemetry_dashboard_blueprint.md` | `v2.5.0` | Complete | Local recyclable analytics dashboard (`dashboard/app.py`, `data_loader.py`, 5 polymorphic UI components for multi-customer & multi-grade analytics) |
+| `v2/CHANGELOG_v2_v2.5.0.md` | `v2.5.0` | Updated | Cumulative release notes covering `v2.0.0` through `v2.5.0` (Milestone M5 \+ Dashboard Extension M5b) |
+| `v2/MILESTONE_TRACKER_v2.5.0.md` | `v2.5.0` | Active | Master progress checklist, architectural decisions, open unknowns for Nov 17, and next-session resume prompt |
+| `precamp/[PRECAMP_DATA]_Track3_QA_Transcript_and_Briefing_Notes.md` | `Pre-Camp (v0)` | Reference Only (Obsolete at Camp) | Pre-camp Q\&A transcript & briefing rules — superseded once live Nov 17–20 camp data arrives |
 
-# **2\. Phased Work Milestones & Completion Checklist**
+---
+
+# 2\. Phased Work Milestones & Completion Checklist
 
 | Milestone ID | Phase Name | Status | Key Deliverable | Blocking Dependency |
 | :---- | :---- | :---- | :---- | :---- |
-| **M1** | Competition Rules & Transcript Synthesis | DONE | Extracted 120 THB/kg base, 90% demand, 1.5x quota, 80% buyback, Qwen 9B 4K limit | None |
-| **M2** | Real-Life Coffee Science & Grading Synthesis | DONE | 11 Chumphon/KMITL papers \+ 9 CQI/TAS 5700/CV/chemistry predictors (`v2` Parts 1 & 2\) | None |
-| **M3** | Statistical Market-Stage Detection Engine | DONE | 5 indicators (`CPR_t`, `Slope_t`, `CV_t`, `DIR_t`, `IUR_t`) \+ 5-stage matrix (`v2` Part 3\) | None |
-| **M4** | High-Level Pluggable Pricing Pipeline & XGBoost Design | DONE | 6-stage schema-agnostic pipeline \+ optional `XGBPriceAdjuster` plugin (`v2.1.0` Part 3\) | None |
-| **M5** | Pre-Camp Python Skeleton & Local-AI Blueprint (`v2.3.0`) | DONE | Completed `v2/v2_part4_local_ai_implementation_blueprint.md` (13-file modular codebase \+ FlightRecorder \+ auto\_sniffer.py \+ CI/CD \+ e2e tests) | User trigger in next turn/session |
-| **M6** | Nov 17 On-Site Calibration & Local-AI Code Generation | NEXT | Generate repo locally from v2 Part 4, plug in official Nov 17 valuation weights & JSON keys, and log 6 buyer ceilings | Nov 17 AM Training Session |
-| **M7** | Nov 18 Autonomous Agent Deployment (`Phase 2`) | PENDING | Push calibrated codebase to organizer Git CI/CD; train optional XGBoost on Phase 1–2 logs | Nov 18 AM Agent Training |
-| **M8** | Nov 20 Final Competition Tuning (`Phase 3`) | PENDING | Enable seasonal regime multipliers & 15-round urgency decay | Nov 20 AM Final Match |
+| `M1` | Competition Rules & Transcript Synthesis | `DONE` | Extracted 120 THB/kg base, 90% demand, 1.5x quota, 80% buyback, Qwen 9B 4K limit | None |
+| `M2` | Real-Life Coffee Science & Grading Synthesis | `DONE` | 11 Chumphon/KMITL papers \+ 9 CQI/TAS 5700/CV/chemistry predictors (`v2` Parts 1 & 2\) | None |
+| `M3` | Statistical Market-Stage Detection Engine | `DONE` | 5 indicators (`CPR_t`, `Slope_t`, `CV_t`, `DIR_t`, `IUR_t`) \+ 5-stage matrix (`v2` Part 3\) | None |
+| `M4` | High-Level Pluggable Pricing Pipeline & XGBoost Design | `DONE` | 6-stage schema-agnostic pipeline \+ optional `XGBPriceAdjuster` plugin (`v2.1.0` Part 3\) | None |
+| `M5` | Pre-Camp Python Skeleton & Local-AI Blueprint (`v2.4.0`) | `DONE` | Completed `v2/v2_part4_local_ai_implementation_blueprint.md` (13-file modular codebase \+ `FlightRecorder` \+ `auto_sniffer.py` \+ CI/CD \+ e2e tests) | None |
+| `M5b` | Recyclable Local Telemetry & Market Analytics Dashboard (`v2.5.0`) | `DONE` | Completed `v2/v2_part5_telemetry_dashboard_blueprint.md` (`dashboard/app.py`, `data_loader.py`, 5 polymorphic UI primitives for multi-customer & multi-grade views) | None |
+| `M6` | Nov 17 On-Site Calibration & Local-AI Code Generation | `NEXT` | Generate repo locally from `v2` Parts 4 & 5, plug in official Nov 17 valuation weights & JSON keys, and log 6 buyer ceilings | Nov 17 AM Training Session |
+| `M7` | Nov 18 Autonomous Agent Deployment (Phase 2\) | `PENDING` | Push calibrated codebase to organizer Git CI/CD; train optional XGBoost on Phase 1–2 logs | Nov 18 AM Agent Training |
+| `M8` | Nov 20 Final Competition Tuning (Phase 3\) | `PENDING` | Enable seasonal regime multipliers & 15-round urgency decay | Nov 20 AM Final Match |
 
-# **3\. Locked Architectural Decisions (For Seamless Continuity)**
+---
 
-* **Schema-Agnostic Data Ingestion (`FeatureAdapter`):** Because the exact JSON keys from the organizer's REST API and Track 1/2 payloads are unknown until Nov 17, all raw `dict` payloads pass through a configurable key-mapping dictionary (`FIELD_MAP: dict`) with safe default fallbacks (`float`, `int`, `string`, `bool`).  
+# 3\. Locked Architectural Decisions (For Seamless Continuity)
+
+* **Schema-Agnostic Data Ingestion (`FeatureAdapter`):** Because the exact JSON keys from the organizer's REST API and Track 1/2 payloads are unknown until Nov 17, all raw `dict` payloads pass through a configurable key-mapping dictionary (`FIELD_MAP`: `dict`) with safe default fallbacks (`float`, `int`, `string`, `bool`).  
 * **Pluggable Strategy Pattern (`BasePricePredictor`):** The pricing engine never hardcodes a single model. It runs an ensemble/chain of independent predictor plugins (`HeuristicPredictor`, `OptionalXGBPredictor`, `LLMAdvisoryPredictor`) combined via dynamic confidence weights (`dict` of `string`: `float`).  
-  * Imported inside a `try...except ImportError` block (`HAS_XGB: bool`).  
+  * Imported inside a `try...except ImportError` block (`HAS_XGB`: `bool`).  
   * **Cold-Start Guard (`min_samples_int = 18`):** In Rounds 1–3 (or if `xgboost` is not installed in CI/CD, or training rows `< min_samples_int`), `w_xgb` automatically defaults to `0.0` (`float`).  
   * **Residual Learning Target (`delta_margin_float`):** Predicts clearing price ratio residual (`y_residual = P_clear / V_i - CPR_t`), win probability (`bool`/`float`), or dynamic formula weights (`[alpha, beta, gamma]`).  
 * **Hard Safety Envelope (`SafetyGuardrailLayer`):** Enforces `bid_valid == True` (`bool`), `sacks_int <= Q_max` (`int`), and `final_price_float >= 0.81 * V_i` (`float`).  
 * **Zero Hardcoded Real-World Thresholds (`Pluggable Feature-to-Valuation Framework` — Part 3, Section 3):** Real-world parameters from Parts 1 & 2 act strictly as directional polarity guidelines (`+w` positive quality drivers, `-w` negative defect drivers, and disabled-by-default boundary gates). Feature discovery (`FeatureRegistry`: `dict`), scaling (`"raw"`, `"reference_delta"`, `"lookup_map"`), dynamic buyer spec matching (`SpecMatcherPlugin`), and intrinsic valuation (`"LINEAR_WEIGHTED"`, `"ADDITIVE_POINTS"`, or `"CUSTOM_LAMBDA"`) are 100% config-driven so unknown synthetic competition datasets never trigger false disqualifications.  
-* **Zero-Loss Black-Box Telemetry & Filtered Capture (`FlightRecorder` \+ `auto_sniffer.py` \+ `requests` Hook):** Every HTTP `GET`/`POST` payload matching target IP, port, and `Content-Type` is flushed immediately (`os.fsync()`) to `logs/<match_id>/raw_events.jsonl` and checkpointed atomically to `state_snapshot.json`, with GitHub Actions pushing `logs/` to a `telemetry-logs` branch (`if: always()`) so ephemeral runners never lose round history.
+* **Zero-Loss Black-Box Telemetry & Filtered Capture (`FlightRecorder` \+ `auto_sniffer.py` \+ `requests` Hook):** Every HTTP `GET`/`POST` payload matching target IP, port, and `Content-Type` is flushed immediately (`os.fsync()`) to `logs/<match_id>/raw_events.jsonl` and checkpointed atomically to `state_snapshot.json`, with GitHub Actions pushing `logs/` to a `telemetry-logs` branch (`if: always()`) so ephemeral runners never lose round history.  
+* **Integrated Camp Clues (`humidity` `9–11%` Band & `process` `Wash`/`Dry` — `v2.4.0`):** Added `"humidity"` (`float`, evaluated via `"band_penalty"` around `[9.0, 11.0]` plus optional buyer `min_humidity`/`max_humidity` filters) and `"process"` (`string`, normalized via `process_aliases` into `"WASHED"` vs `"DRY"` with configurable `lookup_map` weights and buyer `required_process` filtering).  
+* **Polymorphic Recyclable Dashboard Architecture (`v2.5.0` — Part 5):** Built 5 stateless, entity-agnostic UI components (`MetricKPICard`, `EntityDimensionSelector`, `RecyclableTimeSeriesChart`, `RecyclableBreakdownChart`, `RecyclableEntityTable`) parameterized by dynamic `group_col` (`buyer_id`, `lot_grade`, `process`, `humidity_band`, `market_stage`) and `metric_col`, with isolated dependencies (`dashboard/requirements-dashboard.txt`) so headless CI/CD runners stay lightweight.
 
-# **4\. Open Unknowns to Resolve on Nov 17 (Camp Day 1\)**
+---
 
-* **Exact Valuation Formula:** Exact mathematical weights for `lot_grade`, `bean_size`, and `defect_ratio` around `120.0` THB/kg.  
+# 4\. Open Unknowns to Resolve on Nov 17 (Camp Day 1\)
+
+* **Exact Valuation Formula:** Note that `humidity` (`9–11%`) and `process` (`wash`/`dry`) have been discovered, while exact numerical coefficients for `lot_grade`, `bean_size`, `defect_ratio`, `humidity`, and `process` remain to be confirmed on Nov 17 AM.  
 * **Exact JSON Schema:** Endpoint paths and field names for `GET /market`, `POST /bid`, and Track 1/2 connectivity payloads.  
 * **CI/CD Environment Packages:** Whether the organizer's GitHub Actions runner allows `xgboost` / `scikit-learn` in `requirements.txt`.
 
-# **5\. Quick-Resume Instructions for Next Session**
+---
 
-If your current chat session runs out of tokens, start a new chat and type:"Read MILESTONE\_TRACKER.md and v2\_part4\_local\_ai\_implementation\_blueprint.md in TESA\_2026\_Track3\_NextGenMarket/v2 and proceed with Milestone M6 (local AI implementation verification and Nov 17 on-site formula/API calibration)."
+# 5\. Quick-Resume Instructions for Next Session
+
+If your current chat session runs out of tokens, start a new chat and type:  
+`"Read MILESTONE_TRACKER_v2.5.0.md, v2_part4_local_ai_implementation_blueprint.md, and v2_part5_telemetry_dashboard_blueprint.md in TESA_2026_Track3_NextGenMarket/v2 and proceed with Milestone M6 (local AI implementation verification and Nov 17 on-site formula/API calibration)."`

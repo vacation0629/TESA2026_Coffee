@@ -7,7 +7,8 @@ from pathlib import Path
 
 
 def view_latest_log():
-    log_dir = os.getenv("LOG_DIR", "logs")
+    default_dir = Path(__file__).resolve().parent / "logs"
+    log_dir = Path(os.getenv("LOG_DIR", str(default_dir)))
     log_files = sorted(glob.glob(f"{log_dir}/*.jsonl"), key=os.path.getmtime, reverse=True)
     if not log_files:
         print(f"No log files found in '{log_dir}/' directory.")

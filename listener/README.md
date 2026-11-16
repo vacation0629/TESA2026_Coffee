@@ -6,7 +6,7 @@ Zero-loss traffic capture tool for Phase 1 manual trading and live market monito
 - `listener/auto_sniffer.py`: mitmproxy / mitmweb sniffer script (captures HTTP GET/POST/PUT/PATCH/DELETE + WebSockets).
 - `listener/view_logs.py`: Interactive CLI log inspector and viewer.
 - `listener/test_listener.py`: Mock verification test suite.
-- `logs/`: Dedicated output directory for append-only `.jsonl` files (gitignored).
+- `listener/logs/`: Dedicated output directory for append-only `.jsonl` files (gitignored).
 
 ## Quick Start
 
