@@ -13,46 +13,107 @@ def generate_mock_datastream():
     for d in target_dirs:
         d.mkdir(parents=True, exist_ok=True)
 
-    # 3 Coffee Types with baselines 80, 100, 120 THB/kg
+    # 3 Coffee Types defined by physical parameters (Moisture, Process, Ripeness, Shape, Value)
+    # Baseline values: 80, 100, 120 THB/kg
     lots_config = {
-        "LOT_C_COMMERCIAL": {
-            "lot_id": "LOT_C_COMMERCIAL",
-            "lot_grade": "C",
+        "LOT_COMMERCIAL_DRY": {
+            "lot_id": "LOT_COMMERCIAL_DRY",
+            "process": "dry",
+            "moisture": 12.6,
+            "ripeness": 76.0,
+            "bean_shape": "BROKEN",
+            "broken_ratio": 0.16,
             "baseline_v": 80.0,
             "bean_size": 5.8,
-            "defect_ratio": 0.12,
-            "humidity": 10.8,
-            "process": "dry",
+            "defect_ratio": 0.16,
+            "lot_grade": "C",
             "initial_sacks": 12,
         },
-        "LOT_B_PREMIUM": {
-            "lot_id": "LOT_B_PREMIUM",
-            "lot_grade": "B",
+        "LOT_STANDARD_DRY": {
+            "lot_id": "LOT_STANDARD_DRY",
+            "process": "dry",
+            "moisture": 11.2,
+            "ripeness": 87.0,
+            "bean_shape": "WHOLE",
+            "broken_ratio": 0.04,
             "baseline_v": 100.0,
             "bean_size": 6.35,
-            "defect_ratio": 0.05,
-            "humidity": 10.2,
-            "process": "washed",
+            "defect_ratio": 0.04,
+            "lot_grade": "B",
             "initial_sacks": 12,
         },
-        "LOT_A_SPECIALTY": {
-            "lot_id": "LOT_A_SPECIALTY",
-            "lot_grade": "A",
+        "LOT_SPECIALTY_WET": {
+            "lot_id": "LOT_SPECIALTY_WET",
+            "process": "wet",
+            "moisture": 10.4,
+            "ripeness": 97.0,
+            "bean_shape": "WHOLE",
+            "broken_ratio": 0.01,
             "baseline_v": 120.0,
             "bean_size": 7.1,
-            "defect_ratio": 0.02,
-            "humidity": 9.9,
-            "process": "honey",
+            "defect_ratio": 0.01,
+            "lot_grade": "A",
             "initial_sacks": 12,
         },
     }
 
+    # Buyer Bots with physical parameter requirements
     buyers_config = [
-        {"buyer_id": "B1_SPECIALTY_ROASTER", "min_grade": "A", "max_defect": 0.03, "demand_sacks": 6, "min_spec_v": 120.0},
-        {"buyer_id": "B2_CAFE_CHAIN", "min_grade": "B", "max_defect": 0.06, "demand_sacks": 8, "min_spec_v": 100.0},
-        {"buyer_id": "B3_EXPORTER_HUB", "min_grade": "B", "max_defect": 0.08, "demand_sacks": 10, "min_spec_v": 100.0},
-        {"buyer_id": "B4_COMMERCIAL_CAN", "min_grade": "C", "max_defect": 0.15, "demand_sacks": 14, "min_spec_v": 80.0},
-        {"buyer_id": "B5_INSTANT_FACTORY", "min_grade": "C", "max_defect": 0.15, "demand_sacks": 16, "min_spec_v": 80.0},
+        {
+            "buyer_id": "B1_SPECIALTY_ROASTER",
+            "required_process": "wet",
+            "max_moisture": 11.0,
+            "min_ripeness": 90.0,
+            "bean_shape_req": "WHOLE_ONLY",
+            "max_broken": 0.03,
+            "target_value": 120.0,
+            "min_grade": "A",
+            "demand_sacks": 6,
+        },
+        {
+            "buyer_id": "B2_CAFE_CHAIN",
+            "required_process": "ANY",
+            "max_moisture": 12.0,
+            "min_ripeness": 80.0,
+            "bean_shape_req": "WHOLE_ONLY",
+            "max_broken": 0.06,
+            "target_value": 100.0,
+            "min_grade": "B",
+            "demand_sacks": 8,
+        },
+        {
+            "buyer_id": "B3_EXPORTER_HUB",
+            "required_process": "dry",
+            "max_moisture": 12.0,
+            "min_ripeness": 80.0,
+            "bean_shape_req": "ANY",
+            "max_broken": 0.08,
+            "target_value": 100.0,
+            "min_grade": "B",
+            "demand_sacks": 10,
+        },
+        {
+            "buyer_id": "B4_COMMERCIAL_CAN",
+            "required_process": "dry",
+            "max_moisture": 13.0,
+            "min_ripeness": 70.0,
+            "bean_shape_req": "ANY",
+            "max_broken": 0.20,
+            "target_value": 80.0,
+            "min_grade": "C",
+            "demand_sacks": 14,
+        },
+        {
+            "buyer_id": "B5_INSTANT_FACTORY",
+            "required_process": "ANY",
+            "max_moisture": 13.5,
+            "min_ripeness": 70.0,
+            "bean_shape_req": "ANY",
+            "max_broken": 0.25,
+            "target_value": 80.0,
+            "min_grade": "C",
+            "demand_sacks": 16,
+        },
     ]
 
     total_rounds = 6
@@ -87,22 +148,30 @@ def generate_mock_datastream():
         for lot_id, ldata in lots_config.items():
             board_lots.append({
                 "lot_id": lot_id,
-                "lot_grade": ldata["lot_grade"],
+                "process": ldata["process"],
+                "moisture": ldata["moisture"],
+                "ripeness": ldata["ripeness"],
+                "bean_shape": ldata["bean_shape"],
+                "broken_ratio": ldata["broken_ratio"],
                 "bean_size": ldata["bean_size"],
                 "defect_ratio": ldata["defect_ratio"],
-                "humidity": ldata["humidity"],
-                "process": ldata["process"],
+                "lot_grade": ldata["lot_grade"],
+                "baseline_v": ldata["baseline_v"],
                 "remaining_sacks": remaining_sacks[lot_id],
             })
-            # Valuation with slight market variation
             valuations[lot_id] = round(ldata["baseline_v"] * (1.0 + 0.01 * (r - 1)), 2)
 
         board_buyers = []
         for b in buyers_config:
             board_buyers.append({
                 "buyer_id": b["buyer_id"],
+                "required_process": b["required_process"],
+                "max_moisture": b["max_moisture"],
+                "min_ripeness": b["min_ripeness"],
+                "bean_shape_req": b["bean_shape_req"],
+                "max_broken": b["max_broken"],
+                "target_value": b["target_value"],
                 "min_grade": b["min_grade"],
-                "max_defect": b["max_defect"],
                 "demand_sacks": max(1, b["demand_sacks"] - (r - 1)),
             })
 
@@ -121,7 +190,6 @@ def generate_mock_datastream():
         }
         records.append(board_poll_ev)
 
-        # Sniffer equivalent representation
         sniffer_records.append({
             "ts_utc": r_time.isoformat(),
             "protocol": "HTTP",
@@ -135,20 +203,21 @@ def generate_mock_datastream():
         # 2. DECISION_AND_BID Event
         bid_time = r_time + timedelta(seconds=2)
         bids = []
-        # Agent bids on matching lots
         for lot_id, ldata in lots_config.items():
             v_i = valuations[lot_id]
-            # Sacks to offer: quota clamped
             offer_sacks = min(2, remaining_sacks[lot_id])
             if offer_sacks > 0:
-                # Price based on stage and cpr
                 bid_price = round(v_i * cpr * 1.02, 2)
-                # Hard floor check
                 bid_price = max(bid_price, round(0.81 * v_i, 2))
                 
-                # Assign to matching buyer
+                # Minimum-Spec physical matching
                 for b in buyers_config:
-                    if ldata["lot_grade"] <= b["min_grade"] and ldata["defect_ratio"] <= b["max_defect"]:
+                    proc_ok = (b["required_process"] in ["ANY", ldata["process"]])
+                    moist_ok = (b["max_moisture"] is None or ldata["moisture"] <= b["max_moisture"])
+                    ripe_ok = (b["min_ripeness"] is None or ldata["ripeness"] >= b["min_ripeness"])
+                    shape_ok = (b["bean_shape_req"] != "WHOLE_ONLY" or ldata["bean_shape"] == "WHOLE")
+                    
+                    if proc_ok and moist_ok and ripe_ok and shape_ok:
                         bids.append({
                             "lot_id": lot_id,
                             "buyer_id": b["buyer_id"],
@@ -203,10 +272,8 @@ def generate_mock_datastream():
         allocations = []
         for b in bids:
             lid = b["lot_id"]
-            # Simulating realistic winning clearing price
             clear_p = round(b["price_per_kg"] * 0.99, 2)
             clearing_prices[lid] = clear_p
-            # Deduct sacks if won
             sacks_sold = min(b["sacks"], remaining_sacks[lid])
             remaining_sacks[lid] -= sacks_sold
             allocations.append({
@@ -231,13 +298,8 @@ def generate_mock_datastream():
                     "round_cpr": cpr,
                     "round_volume": sum(a["sacks_allocated"] for a in allocations),
                 },
-                "buyer_min_spec_v": {
-                    "B1_SPECIALTY_ROASTER": 120.0,
-                    "B2_CAFE_CHAIN": 100.0,
-                    "B3_EXPORTER_HUB": 100.0,
-                    "B4_COMMERCIAL_CAN": 80.0,
-                    "B5_INSTANT_FACTORY": 80.0,
-                },
+                "buyer_target_value": {b["buyer_id"]: b["target_value"] for b in buyers_config},
+                "won_by_buyer": {b["buyer_id"]: True for b in bids},
             },
         }
         records.append(settle_ev)

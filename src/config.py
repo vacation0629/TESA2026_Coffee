@@ -3,11 +3,47 @@ from typing import Any, Callable
 
 # Optional 1-line Excel drop-in for Nov 17 when valuation_mode == "CUSTOM_LAMBDA"
 def default_custom_valuation(lot: dict[str, Any], v_base: float) -> float:
-    grade_bonus = {"A": 12.0, "B": 0.0, "C": -10.0, "1": 12.0, "2": 0.0, "3": -10.0}
-    g = str(lot.get("lot_grade", "2"))
-    size = float(lot.get("bean_size", 6.35))
-    defect = float(lot.get("defect_ratio", 0.05))
-    return v_base + grade_bonus.get(g, 0.0) + 5.0 * (size - 6.35) - 80.0 * defect
+    # If explicit baseline value is provided in lot, respect it:
+    if "baseline_v" in lot and lot["baseline_v"] is not None:
+        return float(lot["baseline_v"])
+    if "value" in lot and lot["value"] is not None:
+        return float(lot["value"])
+    if "v_i" in lot and lot["v_i"] is not None:
+        return float(lot["v_i"])
+
+    # Physical parameter valuation:
+    # 1. Process premium: wet (+10 THB/kg) vs dry (baseline 0)
+    proc = str(lot.get("process", "dry")).lower()
+    proc_adj = 10.0 if proc in ["wet", "washed", "honey"] else 0.0
+
+    # 2. Moisture content (target 10.0% - 12.0%)
+    moisture = float(lot.get("moisture", lot.get("humidity", 11.0)))
+    moisture_adj = 0.0
+    if moisture > 12.0:
+        moisture_adj = -5.0 * (moisture - 12.0)
+    elif moisture < 10.0:
+        moisture_adj = -5.0 * (10.0 - moisture)
+
+    # 3. Ripeness (0 - 100% scale, baseline 85%)
+    ripeness = float(lot.get("ripeness", 85.0))
+    if ripeness <= 1.0:
+        ripeness *= 100.0
+    ripeness_adj = 0.25 * (ripeness - 85.0)
+
+    # 4. Bean Shape / Broken ratio (WHOLE vs BROKEN)
+    shape = str(lot.get("bean_shape", "WHOLE")).upper()
+    broken_ratio = float(lot.get("broken_ratio", lot.get("defect_ratio", 0.05)))
+    if broken_ratio > 1.0:
+        broken_ratio /= 100.0
+    shape_penalty = -15.0 if shape == "BROKEN" else (-30.0 * broken_ratio)
+
+    # Legacy fallback grade bonus if present and no process specified
+    grade_bonus = {"A": 10.0, "B": 0.0, "C": -10.0, "1": 10.0, "2": 0.0, "3": -10.0}
+    g = str(lot.get("lot_grade", "B"))
+    g_bonus = grade_bonus.get(g, 0.0) if "process" not in lot else 0.0
+
+    calc_v = v_base + proc_adj + moisture_adj + ripeness_adj + shape_penalty + g_bonus
+    return round(max(60.0, calc_v), 2)
 
 
 PIPELINE_CONFIG: dict[str, Any] = {
@@ -46,17 +82,28 @@ PIPELINE_CONFIG: dict[str, Any] = {
     "schema_map": {
         "lot": {
             "lot_id": ["lot_id", "id", "coffee_id", "batch_id"],
-            "lot_grade": ["lot_grade", "grade", "tier", "quality_grade"],
+            "process": ["process", "processing_method", "method", "process_type"],
+            "moisture": ["moisture", "humidity", "moisture_pct", "hum", "mc"],
+            "ripeness": ["ripeness", "ripeness_pct", "ripe_ratio", "brix_ripeness"],
+            "bean_shape": ["bean_shape", "shape", "broken_status", "integrity", "defect_type"],
+            "broken_ratio": ["broken_ratio", "broken_pct", "broken_beans", "defect_ratio"],
             "bean_size": ["bean_size", "size", "screen_size", "bean_mm"],
             "defect_ratio": ["defect_ratio", "defect", "defect_pct", "damage_ratio"],
             "sacks": ["remaining_sacks", "sacks", "quantity", "stock"],
+            "lot_grade": ["lot_grade", "grade", "tier", "quality_grade"],
+            "v_i": ["v_i", "value", "evaluated_value", "baseline_v", "base_price"],
         },
         "buyer": {
             "buyer_id": ["buyer_id", "id", "bot_id", "name"],
-            "min_grade": ["min_grade", "required_grade", "grade_min"],
-            "max_defect": ["max_defect", "defect_max", "max_defect_ratio"],
+            "required_process": ["required_process", "process", "process_req", "method_req"],
+            "max_moisture": ["max_moisture", "moisture_max", "max_humidity", "humidity_max"],
+            "min_ripeness": ["min_ripeness", "ripeness_min", "min_ripe", "ripe_min"],
+            "bean_shape_req": ["bean_shape_req", "shape_req", "required_shape", "shape"],
+            "max_broken": ["max_broken", "max_defect", "defect_max", "broken_max"],
             "min_size": ["min_size", "size_min"],
+            "target_value": ["target_value", "value_ceiling", "max_price", "budget"],
             "demand_sacks": ["demand_sacks", "demand", "wanted_sacks", "quota"],
+            "min_grade": ["min_grade", "required_grade", "grade_min"],
         },
     },
 

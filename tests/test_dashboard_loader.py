@@ -60,6 +60,14 @@ class TestDashboardDataLoader(unittest.TestCase):
         self.assertIn("margin_over_vi_pct", frames["bids_df"].columns)
         self.assertIn("humidity_band", frames["bids_df"].columns)
 
+        # Physical parameter verifications (Moisture, Process, Ripeness, Shape, Value)
+        for expected_lot_col in ["process", "moisture", "moisture_band", "ripeness", "ripeness_tier", "bean_shape", "v_i", "value_tier"]:
+            self.assertIn(expected_lot_col, frames["lots_df"].columns)
+            self.assertIn(expected_lot_col, frames["bids_df"].columns)
+
+        for expected_buyer_col in ["required_process", "req_moisture_band", "min_ripeness_tier", "shape_requirement"]:
+            self.assertIn(expected_buyer_col, frames["buyers_df"].columns)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -69,9 +69,17 @@ def load_dashboard_frames(match_or_file: str, log_root: str = "logs") -> dict[st
     bid_rows: list[dict[str, Any]] = []
 
     settlement_by_round: dict[int, dict[str, Any]] = {}
+    valuations_by_round: dict[int, dict[str, float]] = {}
     for ev in events:
-        if ev.get("event_type") == "ROUND_SETTLEMENT":
-            settlement_by_round[int(ev.get("round", -1))] = ev.get("payload", {})
+        r = int(ev.get("round", -1))
+        etype = ev.get("event_type")
+        payload = ev.get("payload", {})
+        if etype == "ROUND_SETTLEMENT":
+            settlement_by_round[r] = payload
+        elif etype == "DECISION_AND_BID" and isinstance(payload, dict):
+            vals = payload.get("valuations", {})
+            if vals:
+                valuations_by_round[r] = {k: float(v) for k, v in vals.items()}
 
     for ev in events:
         etype = ev.get("event_type", "")
@@ -93,18 +101,57 @@ def load_dashboard_frames(match_or_file: str, log_root: str = "logs") -> dict[st
 
         if etype == "BOARD_POLL" and isinstance(payload, dict):
             norm_lots = adapter.normalize_lots(payload.get("lots", []))
+            round_vals = valuations_by_round.get(r_num, {})
             for lot in norm_lots:
-                hum = float(lot.get("humidity", 10.0))
+                lid = lot["lot_id"]
+                proc = lot.get("process", "dry")
+                moisture = float(lot.get("moisture", 10.8))
+                ripeness = float(lot.get("ripeness", 85.0))
+                shape = str(lot.get("bean_shape", "WHOLE")).upper()
+                v_i = float(round_vals.get(lid, lot.get("baseline_v") or 100.0))
+
+                # Moisture Band
+                if moisture < 10.0:
+                    m_band = "< 10.0% (Over-dried)"
+                elif moisture <= 12.0:
+                    m_band = "10.0-12.0% (Optimal)"
+                else:
+                    m_band = "> 12.0% (High Moisture)"
+
+                # Ripeness Tier
+                if ripeness >= 90.0:
+                    rip_tier = ">= 90% (High Ripeness)"
+                elif ripeness >= 80.0:
+                    rip_tier = "80-89% (Standard)"
+                else:
+                    rip_tier = "< 80% (Under-Ripe)"
+
+                # Value Tier
+                if v_i < 90.0:
+                    v_tier = "< 90 THB/kg (Commercial)"
+                elif v_i <= 110.0:
+                    v_tier = "90-110 THB/kg (Standard)"
+                else:
+                    v_tier = "> 110 THB/kg (Specialty)"
+
                 lot_rows.append({
                     "round": r_num,
-                    "lot_id": lot["lot_id"],
-                    "lot_grade": lot["lot_grade"],
+                    "lot_id": lid,
+                    "process": proc,
+                    "moisture": round(moisture, 2),
+                    "moisture_band": m_band,
+                    "ripeness": round(ripeness, 1),
+                    "ripeness_tier": rip_tier,
+                    "bean_shape": shape,
+                    "broken_ratio": round(lot.get("broken_ratio", 0.0), 4),
+                    "v_i": round(v_i, 2),
+                    "value_tier": v_tier,
+                    "remaining_sacks": lot["remaining_sacks"],
                     "bean_size": lot["bean_size"],
                     "defect_ratio": lot["defect_ratio"],
-                    "humidity": hum,
-                    "humidity_band": "IN_BAND_9_11" if 9.0 <= hum <= 11.0 else "OUT_OF_BAND",
-                    "process": lot.get("process", "UNKNOWN"),
-                    "remaining_sacks": lot["remaining_sacks"],
+                    "lot_grade": lot["lot_grade"],
+                    "humidity": round(moisture, 2),
+                    "humidity_band": "IN_BAND_9_11" if 9.0 <= moisture <= 11.0 else "OUT_OF_BAND",
                 })
 
             norm_buyers = adapter.normalize_buyers(payload.get("buyers", []))
@@ -113,15 +160,31 @@ def load_dashboard_frames(match_or_file: str, log_root: str = "logs") -> dict[st
             won_map = settle.get("won_by_buyer", {})
             for b in norm_buyers:
                 b_id = b["buyer_id"]
+                req_p = b.get("required_process", "ANY")
+                max_m = b.get("max_moisture")
+                min_rip = b.get("min_ripeness")
+                s_req = b.get("shape_requirement", "ANY")
+
+                # Formatted requirement filters
+                m_req_str = f"<= {max_m:.1f}%" if max_m is not None else "ANY (No limit)"
+                rip_req_str = f">= {min_rip:.0f}%" if min_rip is not None else "ANY (No limit)"
+
                 buyer_rows.append({
                     "round": r_num,
                     "buyer_id": b_id,
-                    "min_grade": b["min_grade"] or "ANY",
-                    "max_defect": b["max_defect"],
-                    "required_process": b.get("required_process") or "ANY",
+                    "required_process": req_p,
+                    "max_moisture": max_m,
+                    "req_moisture_band": m_req_str,
+                    "min_ripeness": min_rip,
+                    "min_ripeness_tier": rip_req_str,
+                    "shape_requirement": s_req,
+                    "max_broken": b.get("max_broken"),
+                    "target_value": b.get("target_value"),
                     "demand_sacks": b["demand_sacks"],
                     "clearing_price": float(clear_map[b_id]) if b_id in clear_map else None,
                     "our_won": bool(won_map.get(b_id, False)),
+                    "min_grade": b.get("min_grade") or "ANY",
+                    "max_defect": b.get("max_defect"),
                 })
 
         elif etype == "DECISION_AND_BID" and isinstance(payload, dict):
@@ -173,10 +236,16 @@ def load_dashboard_frames(match_or_file: str, log_root: str = "logs") -> dict[st
         "raw_df": pd.DataFrame(events),
     }
 
-    # Enrich bids_df with lot_grade, process, and humidity_band when lots_df is available
+    # Enrich bids_df with process, moisture, ripeness, bean_shape, value_tier when lots_df is available
     if not frames["bids_df"].empty and not frames["lots_df"].empty:
+        meta_cols = [
+            "round", "lot_id", "process", "moisture", "moisture_band",
+            "ripeness", "ripeness_tier", "bean_shape", "value_tier",
+            "lot_grade", "humidity", "humidity_band"
+        ]
+        available_cols = [c for c in meta_cols if c in frames["lots_df"].columns]
         lot_meta = (
-            frames["lots_df"][["round", "lot_id", "lot_grade", "process", "humidity", "humidity_band"]]
+            frames["lots_df"][available_cols]
             .drop_duplicates(subset=["round", "lot_id"])
         )
         frames["bids_df"] = frames["bids_df"].merge(lot_meta, on=["round", "lot_id"], how="left")

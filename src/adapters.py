@@ -20,18 +20,60 @@ class DynamicSchemaAdapter:
         canonical: list[dict[str, Any]] = []
         for idx, raw in enumerate(raw_lots):
             used_keys: set[str] = set()
-            lot_id, k = _extract_key(raw, lot_map["lot_id"], f"lot_{idx+1}")
-            if k: used_keys.add(k)
-            lot_grade, k = _extract_key(raw, lot_map["lot_grade"], "B")
-            if k: used_keys.add(k)
-            bean_size, k = _extract_key(raw, lot_map["bean_size"], 6.35)
-            if k: used_keys.add(k)
-            defect_ratio, k = _extract_key(raw, lot_map["defect_ratio"], 0.05)
-            if k: used_keys.add(k)
-            sacks, k = _extract_key(raw, lot_map["sacks"], 0)
+            lot_id, k = _extract_key(raw, lot_map.get("lot_id", ["lot_id"]), f"lot_{idx+1}")
             if k: used_keys.add(k)
 
-            # Auto-normalize defect percentage (e.g., 5.0 -> 0.05) if > 1.0
+            # Process: dry vs wet
+            proc_raw, k = _extract_key(raw, lot_map.get("process", ["process"]), "dry")
+            if k: used_keys.add(k)
+            proc_str = str(proc_raw).lower()
+            if "wet" in proc_str or "wash" in proc_str:
+                norm_process = "wet"
+            elif "dry" in proc_str or "nat" in proc_str:
+                norm_process = "dry"
+            else:
+                norm_process = proc_str or "dry"
+
+            # Moisture / Humidity
+            moisture_val, k = _extract_key(raw, lot_map.get("moisture", ["moisture", "humidity"]), 10.8)
+            if k: used_keys.add(k)
+            moisture = float(moisture_val)
+
+            # Ripeness (scale 0 - 100%)
+            ripeness_val, k = _extract_key(raw, lot_map.get("ripeness", ["ripeness"]), 85.0)
+            if k: used_keys.add(k)
+            ripeness = float(ripeness_val)
+            if ripeness <= 1.0:
+                ripeness *= 100.0
+
+            # Bean shape: WHOLE vs BROKEN
+            shape_val, k = _extract_key(raw, lot_map.get("bean_shape", ["bean_shape"]), None)
+            if k: used_keys.add(k)
+            broken_val, k = _extract_key(raw, lot_map.get("broken_ratio", ["broken_ratio"]), 0.0)
+            if k: used_keys.add(k)
+            broken_ratio = float(broken_val)
+            if broken_ratio > 1.0:
+                broken_ratio /= 100.0
+
+            if shape_val is not None:
+                norm_shape = "BROKEN" if "BROK" in str(shape_val).upper() else "WHOLE"
+            else:
+                norm_shape = "BROKEN" if broken_ratio >= 0.10 else "WHOLE"
+
+            # Evaluated Value / Baseline V
+            v_val, k = _extract_key(raw, lot_map.get("v_i", ["v_i", "value"]), None)
+            if k: used_keys.add(k)
+
+            # Legacy features
+            bean_size, k = _extract_key(raw, lot_map.get("bean_size", ["bean_size"]), 6.35)
+            if k: used_keys.add(k)
+            defect_ratio, k = _extract_key(raw, lot_map.get("defect_ratio", ["defect_ratio"]), 0.05)
+            if k: used_keys.add(k)
+            sacks, k = _extract_key(raw, lot_map.get("sacks", ["sacks"]), 0)
+            if k: used_keys.add(k)
+            lot_grade, k = _extract_key(raw, lot_map.get("lot_grade", ["lot_grade"]), "B")
+            if k: used_keys.add(k)
+
             defect_val = float(defect_ratio)
             if defect_val > 1.0:
                 defect_val = defect_val / 100.0
@@ -39,6 +81,12 @@ class DynamicSchemaAdapter:
             extra = {ek: ev for ek, ev in raw.items() if ek not in used_keys}
             canonical.append({
                 "lot_id": str(lot_id),
+                "process": norm_process,
+                "moisture": round(moisture, 2),
+                "ripeness": round(ripeness, 1),
+                "bean_shape": norm_shape,
+                "broken_ratio": round(broken_ratio, 4),
+                "baseline_v": float(v_val) if v_val is not None else None,
                 "lot_grade": str(lot_grade),
                 "bean_size": float(bean_size),
                 "defect_ratio": defect_val,
@@ -51,18 +99,40 @@ class DynamicSchemaAdapter:
         buyer_map = self.schema_map["buyer"]
         canonical: list[dict[str, Any]] = []
         for idx, raw in enumerate(raw_buyers):
-            buyer_id, _ = _extract_key(raw, buyer_map["buyer_id"], f"buyer_{idx+1}")
-            min_grade, _ = _extract_key(raw, buyer_map["min_grade"], None)
-            max_defect, _ = _extract_key(raw, buyer_map["max_defect"], None)
-            min_size, _ = _extract_key(raw, buyer_map["min_size"], None)
-            demand_sacks, _ = _extract_key(raw, buyer_map["demand_sacks"], 0)
+            buyer_id, _ = _extract_key(raw, buyer_map.get("buyer_id", ["buyer_id"]), f"buyer_{idx+1}")
+            req_process, _ = _extract_key(raw, buyer_map.get("required_process", ["required_process"]), "ANY")
+            max_moisture, _ = _extract_key(raw, buyer_map.get("max_moisture", ["max_moisture"]), None)
+            min_ripeness, _ = _extract_key(raw, buyer_map.get("min_ripeness", ["min_ripeness"]), None)
+            shape_req, _ = _extract_key(raw, buyer_map.get("bean_shape_req", ["bean_shape_req"]), "ANY")
+            max_broken, _ = _extract_key(raw, buyer_map.get("max_broken", ["max_broken"]), None)
+            target_val, _ = _extract_key(raw, buyer_map.get("target_value", ["target_value"]), None)
+
+            # Legacy fields
+            min_grade, _ = _extract_key(raw, buyer_map.get("min_grade", ["min_grade"]), None)
+            max_defect, _ = _extract_key(raw, buyer_map.get("max_defect", ["max_defect"]), None)
+            min_size, _ = _extract_key(raw, buyer_map.get("min_size", ["min_size"]), None)
+            demand_sacks, _ = _extract_key(raw, buyer_map.get("demand_sacks", ["demand_sacks"]), 0)
+
+            min_rip_val = float(min_ripeness) if min_ripeness is not None else None
+            if min_rip_val is not None and min_rip_val <= 1.0:
+                min_rip_val *= 100.0
 
             max_def_val = float(max_defect) if max_defect is not None else None
             if max_def_val is not None and max_def_val > 1.0:
                 max_def_val = max_def_val / 100.0
 
+            max_brk_val = float(max_broken) if max_broken is not None else None
+            if max_brk_val is not None and max_brk_val > 1.0:
+                max_brk_val = max_brk_val / 100.0
+
             canonical.append({
                 "buyer_id": str(buyer_id),
+                "required_process": str(req_process).lower() if str(req_process).upper() not in ["ANY", "ALL", "NONE", ""] else "ANY",
+                "max_moisture": float(max_moisture) if max_moisture is not None else None,
+                "min_ripeness": min_rip_val,
+                "shape_requirement": str(shape_req).upper() if str(shape_req).upper() not in ["ANY", "ALL", "NONE", ""] else "ANY",
+                "max_broken": max_brk_val,
+                "target_value": float(target_val) if target_val is not None else None,
                 "min_grade": str(min_grade) if min_grade is not None else None,
                 "max_defect": max_def_val,
                 "min_size": float(min_size) if min_size is not None else None,
@@ -134,12 +204,41 @@ class SpecAndQuotaMatcher:
     def is_bid_valid(self, lot: dict[str, Any], buyer: dict[str, Any]) -> bool:
         if lot["remaining_sacks"] <= 0 or buyer["demand_sacks"] <= 0:
             return False
-        if not self._grade_ok(lot["lot_grade"], buyer["min_grade"]):
+
+        # 1. Process Requirement (dry vs wet)
+        req_proc = buyer.get("required_process", "ANY")
+        if req_proc and req_proc.upper() not in ["ANY", "ALL", "NONE", ""]:
+            if str(lot.get("process", "dry")).lower() != str(req_proc).lower():
+                return False
+
+        # 2. Moisture Requirement (e.g., max_moisture <= 12.0%)
+        max_m = buyer.get("max_moisture")
+        if max_m is not None and float(lot.get("moisture", 11.0)) > float(max_m):
             return False
-        if buyer["max_defect"] is not None and lot["defect_ratio"] > buyer["max_defect"]:
+
+        # 3. Ripeness Requirement (e.g., min_ripeness >= 80%)
+        min_rip = buyer.get("min_ripeness")
+        if min_rip is not None and float(lot.get("ripeness", 100.0)) < float(min_rip):
             return False
-        if buyer["min_size"] is not None and lot["bean_size"] < buyer["min_size"]:
+
+        # 4. Bean Shape Requirement (WHOLE vs BROKEN)
+        shape_req = buyer.get("shape_requirement", "ANY")
+        if shape_req and str(shape_req).upper() in ["WHOLE", "WHOLE_ONLY"]:
+            if str(lot.get("bean_shape", "WHOLE")).upper() != "WHOLE":
+                return False
+
+        max_brk = buyer.get("max_broken")
+        if max_brk is not None and float(lot.get("broken_ratio", 0.0)) > float(max_brk):
             return False
+
+        # 5. Legacy Fallback Checks (grade, defect_ratio, bean_size)
+        if not self._grade_ok(lot.get("lot_grade", "B"), buyer.get("min_grade")):
+            return False
+        if buyer.get("max_defect") is not None and float(lot.get("defect_ratio", 0.0)) > float(buyer["max_defect"]):
+            return False
+        if buyer.get("min_size") is not None and float(lot.get("bean_size", 6.35)) < float(buyer["min_size"]):
+            return False
+
         return True
 
     def match_pairs(

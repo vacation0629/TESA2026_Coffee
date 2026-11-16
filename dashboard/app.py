@@ -36,8 +36,8 @@ raw_df = frames["raw_df"]
 
 tab_exec, tab_customers, tab_grades, tab_telemetry = st.tabs([
     "1. Executive Command Center",
-    "2. Customer Intelligence (Multi-Buyer)",
-    "3. Coffee Grade & Quality (Multi-Grade)",
+    "2. Customer Intelligence (Multi-Buyer Requirements)",
+    "3. Coffee Quality & Parameters (Moisture, Process, Ripeness, Shape, Value)",
     "4. Telemetry & Raw Audit Log",
 ])
 
@@ -97,19 +97,26 @@ with tab_exec:
             ],
         )
 
+    exec_cols = [c for c in ["round", "buyer_id", "lot_id", "process", "moisture", "ripeness", "bean_shape", "sacks", "v_i", "price_per_kg", "margin_over_vi_pct", "clearing_price", "won"] if c in bids_df.columns]
     render_entity_table(
         bids_df,
-        columns=["round", "buyer_id", "lot_id", "lot_grade", "process", "sacks", "v_i", "price_per_kg", "margin_over_vi_pct", "clearing_price", "won"],
+        columns=exec_cols,
         title="Round-by-Round Bid Execution & Settlement Ledger",
     )
 
 # ==============================================================================
-# TAB 2: CUSTOMER INTELLIGENCE (RECYCLED ACROSS ALL BUYER BOT ARCHETYPES)
+# TAB 2: CUSTOMER INTELLIGENCE (MULTI-BUYER REQUIREMENTS)
 # ==============================================================================
 with tab_customers:
     filtered_buyers = render_dimension_filters(
         buyers_df,
-        dimensions=[("buyer_id", "Customer / Buyer Bot"), ("min_grade", "Min Grade Spec"), ("required_process", "Process Spec")],
+        dimensions=[
+            ("buyer_id", "Customer / Buyer Bot"),
+            ("required_process", "Required Process (Dry / Wet)"),
+            ("req_moisture_band", "Moisture Requirement"),
+            ("min_ripeness_tier", "Min Ripeness Requirement"),
+            ("shape_requirement", "Bean Shape Requirement"),
+        ],
         key_prefix="cust_tab",
     )
     filtered_customer_bids = render_dimension_filters(
@@ -150,58 +157,68 @@ with tab_customers:
             title="Total Demand Volume (Sacks) by Customer",
         )
 
+    buyer_table_cols = [c for c in ["round", "buyer_id", "required_process", "req_moisture_band", "min_ripeness_tier", "shape_requirement", "demand_sacks", "clearing_price", "our_won"] if c in filtered_buyers.columns]
     render_entity_table(
         filtered_buyers,
-        columns=["round", "buyer_id", "min_grade", "max_defect", "required_process", "demand_sacks", "clearing_price", "our_won"],
+        columns=buyer_table_cols,
         title="Customer Specification & Clearing History",
     )
 
 # ==============================================================================
-# TAB 3: COFFEE GRADE & QUALITY (RECYCLED ACROSS ALL GRADES, PROCESSES & HUMIDITY)
+# TAB 3: COFFEE QUALITY & PHYSICAL PARAMETERS (MOISTURE, PROCESS, RIPENESS, SHAPE, VALUE)
 # ==============================================================================
 with tab_grades:
     filtered_lots = render_dimension_filters(
         lots_df,
-        dimensions=[("lot_grade", "Coffee Grade"), ("process", "Processing Method"), ("humidity_band", "Humidity Band (9-11%)")],
-        key_prefix="grade_tab",
+        dimensions=[
+            ("process", "Process (Dry vs Wet)"),
+            ("moisture_band", "Moisture (Humidity %)"),
+            ("ripeness_tier", "Ripeness (Scale 0-100%)"),
+            ("bean_shape", "Bean Shape (Whole vs Broken)"),
+            ("value_tier", "Evaluated Value V_i (THB/kg)"),
+        ],
+        key_prefix="quality_tab",
     )
 
-    num_grades = int(filtered_lots["lot_grade"].nunique()) if not filtered_lots.empty else 0
-    avg_size = float(filtered_lots["bean_size"].mean()) if not filtered_lots.empty else 0.0
-    avg_defect = float(filtered_lots["defect_ratio"].mean() * 100.0) if not filtered_lots.empty else 0.0
-    in_band_pct = float((filtered_lots["humidity_band"] == "IN_BAND_9_11").mean() * 100.0) if not filtered_lots.empty else 0.0
+    num_lots = int(filtered_lots["lot_id"].nunique()) if not filtered_lots.empty else 0
+    avg_moisture = float(filtered_lots["moisture"].mean()) if (not filtered_lots.empty and "moisture" in filtered_lots.columns) else 0.0
+    avg_ripeness = float(filtered_lots["ripeness"].mean()) if (not filtered_lots.empty and "ripeness" in filtered_lots.columns) else 0.0
+    whole_pct = float((filtered_lots["bean_shape"] == "WHOLE").mean() * 100.0) if (not filtered_lots.empty and "bean_shape" in filtered_lots.columns) else 0.0
+    avg_v = float(filtered_lots["v_i"].mean()) if (not filtered_lots.empty and "v_i" in filtered_lots.columns) else 0.0
 
     render_kpi_row([
-        {"label": "Distinct Coffee Grades", "value": f"{num_grades} grades"},
-        {"label": "Mean Bean Size", "value": f"{avg_size:.2f} mm"},
-        {"label": "Mean Defect Ratio", "value": f"{avg_defect:.2f}%"},
-        {"label": "Humidity 9-11% Compliance", "value": f"{in_band_pct:.1f}%"},
+        {"label": "Active Coffee Lots", "value": f"{num_lots} lots"},
+        {"label": "Mean Moisture Content", "value": f"{avg_moisture:.1f}%", "delta": "Target: 10.0–12.0%"},
+        {"label": "Mean Ripeness", "value": f"{avg_ripeness:.1f}%", "delta": "Scale: 0–100%"},
+        {"label": "Whole Bean Integrity", "value": f"{whole_pct:.1f}%", "delta": f"Broken: {100.0 - whole_pct:.1f}%"},
+        {"label": "Mean Evaluated Value (V_i)", "value": f"{avg_v:.2f} THB/kg"},
     ])
 
     g1, g2 = st.columns(2)
     with g1:
         render_cohort_breakdown(
             bids_df,
-            group_col="lot_grade",
+            group_col="process" if "process" in bids_df.columns else "lot_id",
             metric_col="margin_over_vi_pct",
             agg_fn="mean",
-            color_col="process",
+            color_col="bean_shape" if "bean_shape" in bids_df.columns else None,
             chart_type="bar",
-            title="Realized Margin (%) by Coffee Grade & Process (Washed vs Dry)",
+            title="Realized Margin (%) by Process (Dry vs Wet) & Bean Shape",
         )
     with g2:
         render_compatibility_heatmap(
             bids_df,
             row_col="buyer_id",
-            col_col="lot_grade",
+            col_col="process" if "process" in bids_df.columns else "lot_id",
             value_col="margin_over_vi_pct",
-            title="Recycled Matrix: Buyer Archetype x Coffee Grade Avg Margin (%)",
+            title="Buyer Archetype x Processing Method Margin (%)",
         )
 
+    lot_table_cols = [c for c in ["round", "lot_id", "process", "moisture", "moisture_band", "ripeness", "ripeness_tier", "bean_shape", "v_i", "value_tier", "remaining_sacks"] if c in filtered_lots.columns]
     render_entity_table(
         filtered_lots,
-        columns=["round", "lot_id", "lot_grade", "process", "humidity", "humidity_band", "bean_size", "defect_ratio", "remaining_sacks"],
-        title="Coffee Lot Quality & Inventory Ledger",
+        columns=lot_table_cols,
+        title="Coffee Lot Physical Quality & Inventory Ledger",
     )
 
 # ==============================================================================
