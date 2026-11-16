@@ -1,242 +1,249 @@
 from __future__ import annotations
+
 import sys
-import time
 from pathlib import Path
+from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+import pandas as pd
 import streamlit as st
-from dashboard.components.breakdown_chart import render_cohort_breakdown, render_compatibility_heatmap
+
 from dashboard.components.entity_table import render_entity_table
 from dashboard.components.filter_bar import render_dimension_filters
 from dashboard.components.kpi_card import render_kpi_row
+from dashboard.components.quick_match import render_quick_match
 from dashboard.components.time_series_chart import render_trend_chart
 from dashboard.data_loader import discover_matches, load_dashboard_frames
+from dashboard.field_catalog import BUYER_GROUPS, LOT_GROUPS, Field, count, display_value
 
-st.set_page_config(page_title="TESA 2026 Track 3 — Market Command Dashboard", layout="wide")
-st.title("TESA 2026 Track 3 — Autonomous Robusta Market Dashboard")
+VIEWS = ("Quick Match", "Coffee Lots", "Buyers", "Market", "Bids", "Audit")
+INDICATORS = {
+    "cpr_t": "Price-to-value ratio",
+    "dir_t": "Demand intensity",
+    "iur_t": "Inventory urgency",
+    "cv_t": "Price variation",
+    "slope_t": "Price momentum",
+}
+PRIVATE_KEYS = {
+    "authorization", "proxy_authorization", "cookie", "set_cookie", "session_id", "password",
+    "token", "access_token", "refresh_token", "team_api_key", "api_key", "apikey", "x_api_key",
+    "buyer_reserve_ceiling", "reserve_ceiling",
+}
 
-# --- Sidebar Controls ---
-with st.sidebar:
-    st.header("Telemetry Source")
-    matches = discover_matches("logs")
-    selected_match = st.selectbox("Match / Capture Log", options=matches, index=0)
-    auto_refresh = st.checkbox("Auto-Refresh (5s polling)", value=False)
-    if st.button("Refresh Now"):
-        st.rerun()
 
-frames = load_dashboard_frames(selected_match, log_root="logs")
-rounds_df = frames["rounds_df"]
-lots_df = frames["lots_df"]
-buyers_df = frames["buyers_df"]
-bids_df = frames["bids_df"]
-raw_df = frames["raw_df"]
+def _records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    return df.astype(object).where(df.notna(), None).to_dict("records")
 
-tab_exec, tab_customers, tab_grades, tab_telemetry = st.tabs([
-    "1. Executive Command Center",
-    "2. Customer Intelligence (Multi-Buyer Requirements)",
-    "3. Coffee Quality & Parameters (Moisture, Process, Ripeness, Shape, Value)",
-    "4. Telemetry & Raw Audit Log",
-])
 
-# ==============================================================================
-# TAB 1: EXECUTIVE COMMAND CENTER
-# ==============================================================================
-with tab_exec:
-    latest_round = int(rounds_df["round"].max()) if not rounds_df.empty else 0
-    latest_stage = str(rounds_df.iloc[-1]["market_stage"]) if not rounds_df.empty else "WAITING"
-    latest_cpr = float(rounds_df.iloc[-1]["cpr_t"]) if not rounds_df.empty else 1.00
-    latest_iur = float(rounds_df.iloc[-1]["iur_t"]) if not rounds_df.empty else 0.00
-    avg_margin = float(bids_df["margin_over_vi_pct"].mean()) if not bids_df.empty else 0.0
-    win_rate = float(bids_df["won"].mean() * 100.0) if not bids_df.empty else 0.0
-    rem_sacks = (
-        int(lots_df[lots_df["round"] == lots_df["round"].max()]["remaining_sacks"].sum())
-        if not lots_df.empty else 0
-    )
+def _at_round(df: pd.DataFrame, selected_round: int | None) -> pd.DataFrame:
+    return df[df["round"] == selected_round] if selected_round is not None and "round" in df else df
 
-    render_kpi_row([
-        {"label": "Current Round / Stage", "value": f"R{latest_round} · {latest_stage}"},
-        {"label": "Clearing Price Ratio (CPR)", "value": f"{latest_cpr:.3f}x", "delta": f"{(latest_cpr - 1.0)*100:+.1f}% vs V_spec"},
-        {"label": "Avg Offered Margin vs V_i", "value": f"{avg_margin:+.2f}%", "delta": f"Win Rate: {win_rate:.1f}%"},
-        {"label": "Remaining Sacks / IUR", "value": f"{rem_sacks} sacks", "delta": f"Urgency IUR: {latest_iur:.2f}", "delta_color": "inverse"},
-    ])
 
-    c1, c2 = st.columns(2)
-    with c1:
-        if not rounds_df.empty:
-            melted_stats = rounds_df.melt(
-                id_vars=["round", "market_stage"],
-                value_vars=["cpr_t", "dir_t", "iur_t"],
-                var_name="indicator",
-                value_name="value",
+def _render_fields(record: dict[str, Any], groups: dict[str, tuple[Field, ...]]) -> None:
+    sources = record.get("field_sources", {})
+    for group, fields in groups.items():
+        observed = any(record.get(field.key) is not None for field in fields)
+        with st.expander(group, expanded=observed):
+            st.dataframe(
+                [
+                    {"Parameter": field.label, "Value": display_value(field, record.get(field.key)),
+                     "Recorded field": sources.get(field.key, "—")}
+                    for field in fields
+                ],
+                hide_index=True, use_container_width=True,
             )
-            render_trend_chart(
-                melted_stats,
-                x_col="round",
-                y_col="value",
-                color_by="indicator",
-                title="Live Statistical Market Regime Indicators (CPR, DIR, IUR)",
-                y_label="Ratio",
-                reference_lines=[{"y": 1.0, "label": "Equilibrium (1.0)", "color": "#888888"}],
-            )
-        else:
-            st.info("No round telemetry recorded yet.")
-    with c2:
-        render_trend_chart(
-            bids_df,
-            x_col="round",
-            y_col="margin_over_vi_pct",
-            color_by="buyer_id",
-            title="Submitted Bid Margin (%) Over Evaluated Value V_i",
-            y_label="Margin (%)",
-            reference_lines=[
-                {"y": 0.0, "label": "V_i Break-Even (0%)", "color": "#2CA02C"},
-                {"y": -19.0, "label": "Hard Floor 0.81*V_i (-19%)", "color": "#D62728"},
-            ],
-        )
 
-    exec_cols = [c for c in ["round", "buyer_id", "lot_id", "process", "moisture", "ripeness", "bean_shape", "sacks", "v_i", "price_per_kg", "margin_over_vi_pct", "clearing_price", "won"] if c in bids_df.columns]
-    render_entity_table(
-        bids_df,
-        columns=exec_cols,
-        title="Round-by-Round Bid Execution & Settlement Ledger",
-    )
 
-# ==============================================================================
-# TAB 2: CUSTOMER INTELLIGENCE (MULTI-BUYER REQUIREMENTS)
-# ==============================================================================
-with tab_customers:
-    filtered_buyers = render_dimension_filters(
-        buyers_df,
-        dimensions=[
-            ("buyer_id", "Customer / Buyer Bot"),
-            ("required_process", "Required Process (Dry / Wet)"),
-            ("req_moisture_band", "Moisture Requirement"),
-            ("min_ripeness_tier", "Min Ripeness Requirement"),
-            ("shape_requirement", "Bean Shape Requirement"),
-        ],
-        key_prefix="cust_tab",
-    )
-    filtered_customer_bids = render_dimension_filters(
-        bids_df,
-        dimensions=[("buyer_id", "Filter Bids by Customer")],
-        key_prefix="cust_bids",
-    )
+def _render_lots(lots: list[dict[str, Any]], scope: str) -> None:
+    if not lots:
+        st.info("No inventory was recorded for this round.")
+        return
+    options = {lot["lot_id"]: lot for lot in lots}
+    lot = options[st.selectbox("Lot ID", list(options), key=f"inspect_lot_{scope}")]
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Bean")
+        _render_fields(lot, {name.split(" / ")[1]: fields for name, fields in LOT_GROUPS.items() if name.startswith("Bean / ")})
+    with right:
+        st.subheader("Lot details")
+        _render_fields(lot, {name: fields for name, fields in LOT_GROUPS.items() if not name.startswith("Bean / ")})
 
-    num_buyers = int(filtered_buyers["buyer_id"].nunique()) if not filtered_buyers.empty else 0
-    total_demand = int(filtered_buyers["demand_sacks"].sum()) if not filtered_buyers.empty else 0
-    avg_clear = float(filtered_buyers["clearing_price"].dropna().mean()) if (not filtered_buyers.empty and filtered_buyers["clearing_price"].notna().any()) else 0.0
-    cust_win_rate = float(filtered_customer_bids["won"].mean() * 100.0) if not filtered_customer_bids.empty else 0.0
 
+def _render_buyers(buyers: list[dict[str, Any]], scope: str) -> None:
+    if not buyers:
+        st.info("No buyers were recorded for this round.")
+        return
+    options = {buyer["buyer_id"]: buyer for buyer in buyers}
+    buyer = options[st.selectbox("Buyer ID", list(options), key=f"inspect_buyer_{scope}")]
+    left, right = st.columns(2)
+    with left:
+        _render_fields(buyer, {"Requirements": BUYER_GROUPS["Requirements"]})
+    with right:
+        _render_fields(buyer, {"Demand": BUYER_GROUPS["Demand"]})
+        with st.expander("Settlement", expanded=buyer.get("clearing_price") is not None or buyer.get("our_won") is not None):
+            price = buyer.get("clearing_price")
+            won = buyer.get("our_won")
+            st.write(f"Clearing price · {price:,.2f} THB/kg" if price is not None else "Clearing price · Unavailable")
+            st.write(f"Buyer outcome · {('Won' if won else 'Lost') if won is not None else 'Unavailable'}")
+
+
+def _render_market(rounds: pd.DataFrame, summary: dict[str, Any], selected_round: int) -> None:
     render_kpi_row([
-        {"label": "Active Customer Archetypes", "value": f"{num_buyers} buyers"},
-        {"label": "Cumulative Board Demand", "value": f"{total_demand} sacks"},
-        {"label": "Avg Buyer Clearing Price", "value": f"{avg_clear:.2f} THB/kg" if avg_clear > 0 else "Pending"},
-        {"label": "Filtered Customer Win Rate", "value": f"{cust_win_rate:.1f}%"},
+        {"label": "Market stage", "value": str(summary.get("market_stage") or "Unavailable").replace("_", " ").title()},
+        {"label": "Season", "value": str(summary.get("season_state") or "Unavailable").replace("_", " ").title()},
+        {"label": "Round cap", "value": f'{int(summary["q_max"])} sacks' if summary.get("q_max") is not None else "Unavailable"},
     ])
+    columns = [key for key in INDICATORS if key in rounds and rounds[key].notna().any()]
+    if columns:
+        history = rounds.loc[rounds["round"] <= selected_round, ["round", *columns]]
+        features = history.melt(id_vars="round", var_name="Indicator")
+        features["Indicator"] = features["Indicator"].map(INDICATORS)
+        render_trend_chart(features, "round", "value", "Indicator", title="Market indicators through the selected round", y_label="Recorded value")
+    else:
+        st.caption("Market indicators are unavailable for this capture.")
 
-    col_b1, col_b2 = st.columns(2)
-    with col_b1:
-        render_trend_chart(
-            filtered_buyers,
-            x_col="round",
-            y_col="clearing_price",
-            color_by="buyer_id",
-            title="Clearing Price Trajectory by Customer Archetype",
-            y_label="THB/kg",
+
+def _render_bids(bids: pd.DataFrame) -> None:
+    bids = render_dimension_filters(bids, [("buyer_id", "Buyer"), ("lot_id", "Lot")], key_prefix="bid_ledger")
+    labels = {
+        "buyer_id": "Buyer", "lot_id": "Lot", "submission": "Submission", "sacks": "Sacks",
+        "v_i": "Lot value (THB/kg)", "price_per_kg": "Offer (THB/kg)",
+        "margin_over_vi_pct": "Offered margin (%)", "clearing_price": "Buyer clearing (THB/kg)",
+        "bid_valid": "Valid", "bid_outcome_status": "Outcome", "bid_failure_reason": "Failure reason",
+    }
+    render_entity_table(bids.rename(columns=labels), columns=list(labels.values()))
+
+
+def _redact(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: "[redacted]" if key.lower().replace("-", "_") in PRIVATE_KEYS else _redact(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    return value
+
+
+def _render_audit(raw: pd.DataFrame) -> None:
+    if raw.empty:
+        st.info("No events were recorded for this selection.")
+        return
+    metadata = raw.copy()
+    if "endpoint" in metadata:
+        metadata["endpoint"] = metadata["endpoint"].map(
+            lambda endpoint: endpoint.split("?", 1)[0] if isinstance(endpoint, str) else None
         )
-    with col_b2:
-        render_cohort_breakdown(
-            filtered_buyers,
-            group_col="buyer_id",
-            metric_col="demand_sacks",
-            agg_fn="sum",
-            chart_type="bar",
-            title="Total Demand Volume (Sacks) by Customer",
+    render_entity_table(metadata, columns=["ts_utc", "round", "event_type", "endpoint", "status_code"])
+    events = _records(raw)
+    index = st.selectbox(
+        "Inspect event", range(len(events)), index=len(events) - 1,
+        format_func=lambda i: f'{events[i]["event_type"]} · {events[i].get("ts_utc") or "time unavailable"}',
+    )
+    st.json(_redact({key: events[index][key] for key in ("payload", "request_payload", "response_payload") if events[index].get(key) is not None}))
+
+
+st.set_page_config(page_title="Robusta Market", layout="wide")
+st.markdown(
+    """
+    <style>
+    [data-testid="stMainBlockContainer"] {max-width: 1512px; padding-top: 2.25rem; padding-bottom: 3rem;}
+    [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {gap: 0.7rem;}
+    [data-testid="stMetric"] {
+        padding: 0.65rem 0.9rem; border: 1px solid #dce6df; border-radius: 0.55rem; background: #f2f6f1;
+    }
+    [data-testid="stMetricValue"] {font-size: 1.65rem; letter-spacing: -0.035em;}
+    [data-testid="stRadio"] [role="radiogroup"] {
+        gap: 0.3rem 0.85rem; flex-wrap: wrap; padding: 0.2rem 0;
+        border-bottom: 1px solid #dce6df;
+    }
+    [data-testid="stRadio"] label {padding: 0.3rem 0.35rem;}
+    [data-testid="stRadio"] label:has(input:checked) {font-weight: 650;}
+    [data-testid="stHorizontalBlock"] [data-testid="stButton"] {margin-top: 1.75rem;}
+    [data-testid="stPlotlyChart"] {border: 1px solid #e3e8e1; border-radius: 0.55rem; padding: 0 0.3rem;}
+    @media (max-width: 640px) {
+        [data-testid="stHorizontalBlock"] [data-testid="stButton"] {margin-top: 0;}
+        [data-testid="stPlotlyChart"] .xtick text, [data-testid="stPlotlyChart"] .ytick text {
+            font-size: 10px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+title, refresh_control = st.columns([4, 1])
+with title:
+    st.title("Robusta Market")
+with refresh_control:
+    live_refresh = st.toggle("Live refresh", help="Read new capture events every five seconds.")
+
+
+@st.fragment(run_every=5 if live_refresh else None)
+def _dashboard() -> None:
+    log_root = ROOT_DIR / "logs"
+    matches = discover_matches(log_root)
+    if not matches:
+        st.info("No JSONL captures are available in logs or listener/logs.")
+        st.button("Refresh")
+        return
+
+    capture_column, round_column, refresh_column = st.columns([3, 1.45, 1])
+    with capture_column:
+        capture = st.selectbox(
+            "Match or capture", matches,
+            format_func=lambda name: f"{name} (mock)" if "mock" in name.lower() else name,
         )
+    frames = load_dashboard_frames(capture, log_root)
+    rounds = frames["rounds_df"]
+    round_numbers = sorted(rounds["round"].astype(int).unique(), reverse=True) if not rounds.empty else []
+    with round_column:
+        chosen = st.selectbox("Round", ["Latest", *round_numbers], key=f"round_{capture}")
+    with refresh_column:
+        st.button("Refresh", help="Read the latest logged events.", use_container_width=True)
 
-    buyer_table_cols = [c for c in ["round", "buyer_id", "required_process", "req_moisture_band", "min_ripeness_tier", "shape_requirement", "demand_sacks", "clearing_price", "our_won"] if c in filtered_buyers.columns]
-    render_entity_table(
-        filtered_buyers,
-        columns=buyer_table_cols,
-        title="Customer Specification & Clearing History",
-    )
+    if chosen == "Latest":
+        snapshot = rounds["board_seen"].eq(True) if "board_seen" in rounds else pd.Series(False, index=rounds.index)
+        selected_round = int(rounds.loc[snapshot, "round"].max()) if snapshot.any() else (int(round_numbers[0]) if round_numbers else None)
+    else:
+        selected_round = int(chosen)
+    selected_summary = _records(_at_round(rounds, selected_round))
+    summary = selected_summary[0] if selected_summary else {}
+    quota = count(summary.get("q_max"))
+    context = []
+    if selected_round is not None:
+        total_rounds = count(summary.get("total_rounds"))
+        context.append(f"Round {selected_round} of {total_rounds}" if total_rounds else f"Round {selected_round}")
+    observed = pd.to_datetime(summary.get("snapshot_at"), errors="coerce", utc=True)
+    if observed is not None and pd.notna(observed):
+        context.append(f"Board at {observed.tz_convert('Asia/Bangkok'):%H:%M:%S} ICT")
+    if quota is not None:
+        context.append(f"Round cap {quota} sacks")
+    if summary.get("settled") is True:
+        context.append("Settled")
+    if context:
+        st.caption(" · ".join(context))
 
-# ==============================================================================
-# TAB 3: COFFEE QUALITY & PHYSICAL PARAMETERS (MOISTURE, PROCESS, RIPENESS, SHAPE, VALUE)
-# ==============================================================================
-with tab_grades:
-    filtered_lots = render_dimension_filters(
-        lots_df,
-        dimensions=[
-            ("process", "Process (Dry vs Wet)"),
-            ("moisture_band", "Moisture (Humidity %)"),
-            ("ripeness_tier", "Ripeness (Scale 0-100%)"),
-            ("bean_shape", "Bean Shape (Whole vs Broken)"),
-            ("value_tier", "Evaluated Value V_i (THB/kg)"),
-        ],
-        key_prefix="quality_tab",
-    )
+    view = st.radio("View", VIEWS, horizontal=True, label_visibility="collapsed", key="view")
+    lot_rows = _records(_at_round(frames["lots_df"], selected_round))
+    buyer_rows = _records(_at_round(frames["buyers_df"], selected_round))
+    if view == "Quick Match":
+        render_quick_match(lot_rows, buyer_rows, quota, capture)
+    elif view == "Coffee Lots":
+        _render_lots(lot_rows, capture)
+    elif view == "Buyers":
+        _render_buyers(buyer_rows, capture)
+    elif view == "Market" and selected_round is not None:
+        _render_market(rounds, summary, selected_round)
+    elif view == "Bids":
+        _render_bids(_at_round(frames["bids_df"], selected_round))
+    elif view == "Audit":
+        _render_audit(_at_round(frames["raw_df"], selected_round))
+    else:
+        st.info("No recorded rounds in this capture.")
 
-    num_lots = int(filtered_lots["lot_id"].nunique()) if not filtered_lots.empty else 0
-    avg_moisture = float(filtered_lots["moisture"].mean()) if (not filtered_lots.empty and "moisture" in filtered_lots.columns) else 0.0
-    avg_ripeness = float(filtered_lots["ripeness"].mean()) if (not filtered_lots.empty and "ripeness" in filtered_lots.columns) else 0.0
-    whole_pct = float((filtered_lots["bean_shape"] == "WHOLE").mean() * 100.0) if (not filtered_lots.empty and "bean_shape" in filtered_lots.columns) else 0.0
-    avg_v = float(filtered_lots["v_i"].mean()) if (not filtered_lots.empty and "v_i" in filtered_lots.columns) else 0.0
 
-    render_kpi_row([
-        {"label": "Active Coffee Lots", "value": f"{num_lots} lots"},
-        {"label": "Mean Moisture Content", "value": f"{avg_moisture:.1f}%", "delta": "Target: 10.0–12.0%"},
-        {"label": "Mean Ripeness", "value": f"{avg_ripeness:.1f}%", "delta": "Scale: 0–100%"},
-        {"label": "Whole Bean Integrity", "value": f"{whole_pct:.1f}%", "delta": f"Broken: {100.0 - whole_pct:.1f}%"},
-        {"label": "Mean Evaluated Value (V_i)", "value": f"{avg_v:.2f} THB/kg"},
-    ])
-
-    g1, g2 = st.columns(2)
-    with g1:
-        render_cohort_breakdown(
-            bids_df,
-            group_col="process" if "process" in bids_df.columns else "lot_id",
-            metric_col="margin_over_vi_pct",
-            agg_fn="mean",
-            color_col="bean_shape" if "bean_shape" in bids_df.columns else None,
-            chart_type="bar",
-            title="Realized Margin (%) by Process (Dry vs Wet) & Bean Shape",
-        )
-    with g2:
-        render_compatibility_heatmap(
-            bids_df,
-            row_col="buyer_id",
-            col_col="process" if "process" in bids_df.columns else "lot_id",
-            value_col="margin_over_vi_pct",
-            title="Buyer Archetype x Processing Method Margin (%)",
-        )
-
-    lot_table_cols = [c for c in ["round", "lot_id", "process", "moisture", "moisture_band", "ripeness", "ripeness_tier", "bean_shape", "v_i", "value_tier", "remaining_sacks"] if c in filtered_lots.columns]
-    render_entity_table(
-        filtered_lots,
-        columns=lot_table_cols,
-        title="Coffee Lot Physical Quality & Inventory Ledger",
-    )
-
-# ==============================================================================
-# TAB 4: TELEMETRY & RAW AUDIT LOG
-# ==============================================================================
-with tab_telemetry:
-    filtered_raw = render_dimension_filters(
-        raw_df,
-        dimensions=[("event_type", "Telemetry Event Type")],
-        key_prefix="raw_tab",
-    )
-    render_entity_table(
-        filtered_raw,
-        columns=["ts_utc", "round", "event_type", "endpoint", "status_code", "payload"],
-        title="Black-Box FlightRecorder & Sniffer Audit Trail",
-        max_rows=100,
-    )
-
-if auto_refresh:
-    time.sleep(5)
-    st.rerun()
+_dashboard()

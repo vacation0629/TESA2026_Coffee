@@ -14,10 +14,27 @@
 
 ---
 
+## Current dashboard and Quick Match
+
+Run the dashboard from the repository root.
+
+```powershell
+python -m pip install -r dashboard/requirements-dashboard.txt
+python -m streamlit run dashboard/app.py
+```
+
+Quick Match opens on the latest recorded board. Select one or more buyer IDs and a sack limit. The buyer-by-lot matrix puts the lowest recorded THB/kg values first and shows which lots meet the filters, which were assigned, and why other lots were excluded. Coffee Lots groups recorded fields under Bean, Processing, Storage, Quality Assessment, Inventory, and Valuation.
+
+Matching uses all recorded requirements, including buyer moisture bounds and lot process, grade, size, shape, ripeness, and defect limits when supplied. The allocation maximizes filled sacks within the selected limit, recorded round cap, stock, and buyer demand. Among equally complete allocations, it prefers recorded values, then minimizes their sack-weighted cost basis. Each sack can be assigned once.
+
+**Future pricing expansion.** Add the official valuation formula and any buyer price criteria when their fields and coefficients are confirmed. Recorded lot values currently provide the THB/kg ranking. A per-sack total requires a recorded sack weight.
+
+---
+
 ## 0\. Local AI Execution Directive & System Overview
 
 **Instructions for Local AI Coding Assistant:**  
-Implement the `dashboard/` directory and unit tests defined in Sections 2–6 verbatim so the team can monitor live Phase 1–3 rounds locally (`streamlit run dashboard/app.py`).
+Use the dashboard implementation described above for current work. Sections 2–6 preserve the original v2.5.0 blueprint.
 
 * **Strict Polymorphism (Recyclable Components):** Never hardcode fixed customer names (e.g., `"B1".."B6"`) or fixed coffee grade labels (e.g., `"A"`, `"B"`, `"C"`, `"FINE_ROBUSTA"`). Every chart, KPI card row, filter bar, and table must accept dynamic grouping columns (`group_col: str`) and metric definitions (`metric_col: str`) discovered at runtime from the loaded telemetry logs.  
 * **Zero Coupling to Live Trading Loop:** The dashboard reads exclusively from disk (`logs/<match_id>/raw_events.jsonl`, `logs/<match_id>/state_snapshot.json`, and `logs/phase1_*.jsonl`) and never makes live `POST` calls to the market server.  
